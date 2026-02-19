@@ -1,6 +1,7 @@
 package org.kluthealmighty.videostreaming.controller;
 
 import org.kluthealmighty.videostreaming.DTO.VideoDTO;
+import org.kluthealmighty.videostreaming.DTO.VideoUpdateDTO;
 import org.kluthealmighty.videostreaming.service.VideoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -29,9 +30,21 @@ public class VideoController {
         return ResponseEntity.status(HttpStatus.OK).body(videos);
     }
 
-    @PostMapping("/")
+    @PostMapping
     public ResponseEntity<VideoDTO> createVideo(@RequestBody VideoDTO videoToCreate){
         VideoDTO createdVideo = videoService.createVideo(videoToCreate);
-        return  ResponseEntity.status(HttpStatus.CREATED).body(createdVideo);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdVideo);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<VideoDTO> updateVideo(@PathVariable UUID id, @RequestBody VideoUpdateDTO videoToUpdate){
+        VideoDTO updatedVideo = videoService.updateVideo(id, videoToUpdate);
+        return ResponseEntity.status(HttpStatus.OK).body(updatedVideo);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteVideo(@PathVariable UUID id){
+        videoService.deleteVideo(id);
+        return ResponseEntity.noContent().build();
     }
 }

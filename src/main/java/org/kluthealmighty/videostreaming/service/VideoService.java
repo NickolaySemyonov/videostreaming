@@ -2,6 +2,7 @@ package org.kluthealmighty.videostreaming.service;
 
 import jakarta.persistence.EntityNotFoundException;
 import org.kluthealmighty.videostreaming.DTO.VideoDTO;
+import org.kluthealmighty.videostreaming.DTO.VideoUpdateDTO;
 import org.kluthealmighty.videostreaming.entity.VideoEntity;
 import org.kluthealmighty.videostreaming.repository.VideoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,7 +45,27 @@ public class VideoService {
         );
         var createdVideo = videoRepository.save(entityToSave);
         return toDomainVideo(createdVideo);
+    }
 
+    public VideoDTO updateVideo(UUID id, VideoUpdateDTO videoToUpdate){
+        var existingVideo = videoRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Video not found with id: " + id));
+
+        if (videoToUpdate.name() != null) {
+            existingVideo.setName(videoToUpdate.name());
+        }
+        if (videoToUpdate.description() != null) {
+            existingVideo.setDescription(videoToUpdate.description());
+        }
+
+        var updatedVideo = videoRepository.save(existingVideo);
+        return toDomainVideo(updatedVideo);
+    }
+
+    public void deleteVideo(UUID id){
+        var existingVideo = videoRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Video not found with id: " + id));
+        videoRepository.delete(existingVideo);
     }
 
 
