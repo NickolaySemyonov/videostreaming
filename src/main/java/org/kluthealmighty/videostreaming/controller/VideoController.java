@@ -1,14 +1,18 @@
 package org.kluthealmighty.videostreaming.controller;
 
-import org.kluthealmighty.videostreaming.DTO.VideoDTO;
-import org.kluthealmighty.videostreaming.DTO.VideoUpdateDTO;
+import org.kluthealmighty.videostreaming.DTO.CreateVideoRequest;
+import org.kluthealmighty.videostreaming.DTO.UpdateVideoRequest;
+import org.kluthealmighty.videostreaming.DTO.VideoResponse;
 import org.kluthealmighty.videostreaming.service.VideoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import java.util.List;
+
 import java.util.UUID;
 
 @RestController
@@ -19,32 +23,71 @@ public class VideoController {
     private VideoService videoService;
 
     @GetMapping("/{id}")
-    public ResponseEntity<VideoDTO> getVideo(@PathVariable UUID id){
-        VideoDTO video = videoService.findVideoById(id);
-        return ResponseEntity.status(HttpStatus.OK).body(video);
+    public Mono<ResponseEntity<VideoResponse>> getVideo(@PathVariable UUID id){
+        return videoService.findVideoById(id)
+                .map(videoResponse -> ResponseEntity.status(HttpStatus.OK).body(videoResponse));
     }
 
     @GetMapping
-    public ResponseEntity<List<VideoDTO>> getAllVideos(){
-        List<VideoDTO> videos = videoService.findAllVideo();
-        return ResponseEntity.status(HttpStatus.OK).body(videos);
+    public Mono<ResponseEntity<Flux<VideoResponse>>> getAllVideos(){
+        return videoService.findAllVideo()
+                .collectList()
+                .map(list -> {
+                    if (list.isEmpty())
+                        return ResponseEntity.noContent().build();
+                    else
+                        return ResponseEntity.status(HttpStatus.OK).body(Flux.fromIterable(list));
+                });
     }
 
     @PostMapping
-    public ResponseEntity<VideoDTO> createVideo(@RequestBody VideoDTO videoToCreate){
-        VideoDTO createdVideo = videoService.createVideo(videoToCreate);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createdVideo);
+    public Mono<ResponseEntity<VideoResponse>> createVideo(
+            @RequestPart("file") FilePart filePart,
+            @RequestPart("videoToCreate") CreateVideoRequest videoToCreate
+            ){
+        String filename = filePart.filename();
+        System.out.println("Receiving file: " + filename);
+        System.out.println(videoToCreate);
+
+        return videoService.createVideo(filePart, videoToCreate)
+                .map(videoResponse -> ResponseEntity.status(HttpStatus.CREATED).body(videoResponse))
+                .onErrorResume(e -> {
+                    System.err.println("Error: " + e.getMessage());
+                    return Mono.just(ResponseEntity.badRequest().build());
+                });
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<VideoDTO> updateVideo(@PathVariable UUID id, @RequestBody VideoUpdateDTO videoToUpdate){
-        VideoDTO updatedVideo = videoService.updateVideo(id, videoToUpdate);
-        return ResponseEntity.status(HttpStatus.OK).body(updatedVideo);
+//    @PutMapping("/{id}")
+//    public ResponseEntity<VideoResponse> updateVideo(@PathVariable UUID id, @RequestBody UpdateVideoRequest videoToUpdate){
+//        VideoResponse updatedVideo = videoService.updateVideo(id, videoToUpdate);
+//        return ResponseEntity.status(HttpStatus.OK).body(updatedVideo);
+//    }
+//
+
+    @PatchMapping("/{id}")
+    public Mono<ResponseEntity<VideoResponse>> updateVideoMetadata(
+            @PathVariable UUID id,
+            @RequestBody UpdateVideoRequest updateRequest
+    ) {
+        return videoService.updateVideoMetadata(id, updateRequest)
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.notFound().build());
     }
+
+    @PutMapping(value = "/{id}")
+    public Mono<ResponseEntity<VideoResponse>> updateVideo(
+            @PathVariable UUID id,
+            @RequestPart("file") FilePart filePart,
+            @RequestPart("videoToUpdate") CreateVideoRequest videoToUpdate
+    ) {
+        return videoService.updateVideo(id, filePart, videoToUpdate)
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.notFound().build());
+    }
+
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteVideo(@PathVariable UUID id){
-        videoService.deleteVideo(id);
-        return ResponseEntity.noContent().build();
+    public Mono<ResponseEntity<Void>> deleteVideo(@PathVariable UUID id){
+        return videoService.deleteVideo(id).map(_ -> ResponseEntity.noContent().build());
     }
 }

@@ -1,15 +1,21 @@
 package org.kluthealmighty.videostreaming.service;
 
-import jakarta.persistence.EntityNotFoundException;
-import org.kluthealmighty.videostreaming.DTO.VideoDTO;
-import org.kluthealmighty.videostreaming.DTO.VideoUpdateDTO;
+
+import org.kluthealmighty.videostreaming.DTO.CreateVideoRequest;
+import org.kluthealmighty.videostreaming.DTO.UpdateVideoRequest;
+import org.kluthealmighty.videostreaming.DTO.VideoResponse;
 import org.kluthealmighty.videostreaming.entity.VideoEntity;
 import org.kluthealmighty.videostreaming.repository.VideoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import java.util.List;
 import java.util.UUID;
+
+import static reactor.netty.http.HttpConnectionLiveness.log;
+
 
 @Service
 public class VideoService {
@@ -17,65 +23,99 @@ public class VideoService {
     @Autowired
     private VideoRepository videoRepository;
 
-    public List<VideoDTO> findAllVideo(){
-        List<VideoEntity> videoEntities = videoRepository.findAll();
+    @Autowired FileService fileService;
 
-        return videoEntities.stream()
+
+    public Flux<VideoResponse> findAllVideo(){
+        return videoRepository
+                .findAll()
+                .map(this::toDomainVideo);
+    }
+
+    public Mono<VideoResponse> findVideoById(UUID id){
+        return videoRepository.findById(id).map(this::toDomainVideo);
+    }
+
+
+    public Mono<VideoResponse> createVideo(FilePart filePart, CreateVideoRequest videoToCreate) {
+        return fileService.saveFile(filePart)
+                .flatMap(videoPath -> {
+                    VideoEntity videoEntity = new VideoEntity(
+                            videoToCreate.name(),
+                            videoToCreate.description(),
+                            videoPath
+                    );
+                    return videoRepository.save(videoEntity);
+                })
+                .map(this::toDomainVideo);
+    }
+
+
+    // UPDATE - Full update with file
+    public Mono<VideoResponse> updateVideo(UUID id, FilePart filePart, CreateVideoRequest request) {
+        return videoRepository.findById(id)
+                .switchIfEmpty(Mono.error(new Exception("Video not found: " + id)))
+                .flatMap(existing ->
+                        fileService.updateFile(existing.getPath(), filePart)
+                                .flatMap(newPath -> {
+                                    existing.setName(request.name());
+                                    existing.setDescription(request.description());
+                                    existing.setPath(newPath);
+                                    return videoRepository.save(existing);
+                                })
+                )
                 .map(this::toDomainVideo)
-                .toList();
+                .doOnSuccess(v -> {
+                    assert v != null;
+                    log.info("Updated video: {}", v.id());
+                });
     }
 
-    public VideoDTO findVideoById(UUID id){
-        VideoEntity videoEntity = videoRepository.findById(id)
-                .orElseThrow(()-> new EntityNotFoundException("Not found video with id: " + id));
-
-        return toDomainVideo(videoEntity);
-    }
-
-
-    public VideoDTO createVideo(VideoDTO videoToCreate){
-        if (videoToCreate.id() != null){
-            throw new IllegalArgumentException("id should be empty");
-        }
-        var entityToSave = new VideoEntity(
-                null,
-                videoToCreate.name(),
-                videoToCreate.description(),
-                null
-        );
-        var createdVideo = videoRepository.save(entityToSave);
-        return toDomainVideo(createdVideo);
-    }
-
-    public VideoDTO updateVideo(UUID id, VideoUpdateDTO videoToUpdate){
-        var existingVideo = videoRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Video not found with id: " + id));
-
-        if (videoToUpdate.name() != null) {
-            existingVideo.setName(videoToUpdate.name());
-        }
-        if (videoToUpdate.description() != null) {
-            existingVideo.setDescription(videoToUpdate.description());
-        }
-
-        var updatedVideo = videoRepository.save(existingVideo);
-        return toDomainVideo(updatedVideo);
-    }
-
-    public void deleteVideo(UUID id){
-        var existingVideo = videoRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Video not found with id: " + id));
-        videoRepository.delete(existingVideo);
+    // UPDATE - Metadata only (no file change)
+    public Mono<VideoResponse> updateVideoMetadata(UUID id, UpdateVideoRequest request) {
+        return videoRepository.findById(id)
+                .switchIfEmpty(Mono.error(new Exception("Video not found: " + id)))
+                .flatMap(existing -> {
+                    if (request.name() != null) {
+                        existing.setName(request.name());
+                    }
+                    if (request.description() != null) {
+                        existing.setDescription(request.description());
+                    }
+                    return videoRepository.save(existing);
+                })
+                .map(this::toDomainVideo)
+                .doOnSuccess(v -> {
+                    assert v != null;
+                    log.info("Updated video metadata: {}", v.id());
+                });
     }
 
 
-    private VideoDTO toDomainVideo(VideoEntity video){
-        return new VideoDTO(
+
+
+
+
+
+
+
+
+
+    public Mono<Void> deleteVideo(UUID id){
+        return videoRepository.deleteById(id);
+    }
+
+
+    private VideoResponse toDomainVideo(VideoEntity video){
+        VideoResponse response = new VideoResponse(
                 video.getId(),
                 video.getName(),
                 video.getDescription(),
+                video.getPath(),
                 video.getCreatedAt()
         );
+        System.out.println(response);
+        return response;
     }
 
 }

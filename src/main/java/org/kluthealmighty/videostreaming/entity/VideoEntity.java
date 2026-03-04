@@ -1,28 +1,31 @@
 package org.kluthealmighty.videostreaming.entity;
 
-import jakarta.persistence.*;
-import org.hibernate.annotations.CreationTimestamp;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Entity
+
 @Table(name = "video")
 public class VideoEntity {
 
     @Id //PK
-    @Column(name = "id")
-    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column("id")
     private UUID id;
 
-    @Column(name = "video_name", nullable = false)
+    @Column("video_name")
     private String name;
 
-    @Column(name = "video_description", length=600)
+    @Column("video_description")
     private String description;
 
-    @CreationTimestamp
-    @Column(name = "created_at")
+    @Column("video_path")
+    private String path;
+
+    @Column("created_at")
     private LocalDateTime createdAt;
 
     public UUID getId() {
@@ -49,6 +52,14 @@ public class VideoEntity {
         this.description = description;
     }
 
+    public String getPath() {
+        return path;
+    }
+
+    public void setPath(String path) {
+        this.path = path;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -60,10 +71,10 @@ public class VideoEntity {
     public VideoEntity() {
     }
 
-    public VideoEntity(UUID id, String name, String description, LocalDateTime createdAt) {
-        this.id = id;
+    public VideoEntity(String name, String description, String path) {
         this.name = name;
         this.description = description;
-        this.createdAt = createdAt;
+        this.path = path;
+        this.createdAt = LocalDateTime.now();
     }
 }

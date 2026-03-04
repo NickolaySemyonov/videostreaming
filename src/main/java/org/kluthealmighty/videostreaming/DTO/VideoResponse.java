@@ -3,10 +3,11 @@ package org.kluthealmighty.videostreaming.DTO;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public record VideoDTO(
+public record VideoResponse(
         UUID id,
         String name,
         String description,
+        String path,
         LocalDateTime createdAt
 ) {
 }
