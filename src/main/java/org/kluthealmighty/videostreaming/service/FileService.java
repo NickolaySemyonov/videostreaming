@@ -48,11 +48,12 @@ public class FileService {
         if (isPathEmpty(filePath)) return Mono.empty();
 
         return Mono.defer(() -> {
-                Path originPath = Paths.get(filePath);
-                Path backupPath = backupDir.resolve(originPath.getFileName());
-                return createBackup(originPath, backupPath)
-                        .flatMap(this::deleteSourceFile)
-                        .thenReturn(backupPath.toString());
+            Path originPath = Paths.get(filePath);
+            Path backupPath = backupDir.resolve(originPath.getFileName());
+
+            return createBackup(originPath, backupPath)
+                    .flatMap(_ -> deleteSourceFile(originPath))
+                    .thenReturn(backupPath.toString());
         });
     }
 
@@ -95,11 +96,11 @@ public class FileService {
     }
 
 
-    public Mono<Void> clearBackup(String originPath) {
-        if (isPathEmpty(originPath)) return Mono.empty();
+    public Mono<Void> clearBackup(String path) {
+        if (isPathEmpty(path)) return Mono.empty();
 
         return Mono.defer(() -> {
-            Path origin = Paths.get(originPath);
+            Path origin = Paths.get(path);
             Path backup = backupDir.resolve(origin.getFileName());
             return deleteSourceFile(backup).then();
         });

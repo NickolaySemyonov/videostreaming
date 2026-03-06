@@ -65,7 +65,6 @@ public class VideoService {
                                 existing.setPath(newPath);
                                 return videoRepository.save(existing);
                             })
-                            // Используем сохраненный oldPath для очистки бэкапа
                             .flatMap(savedVideo ->
                                     fileService.clearBackup(oldPath)
                                             .thenReturn(savedVideo)
@@ -99,27 +98,30 @@ public class VideoService {
     }
 
 
-
-
-
     public Mono<Void> deleteVideo(UUID id){
         return videoRepository.findById(id)
-                .flatMap(videoEntity -> fileService.deleteFile(videoEntity.getPath())
-                        .then(videoRepository.delete(videoEntity))
-                );
+                .switchIfEmpty(Mono.error(new Exception("Video not found: " + id)))
+                .flatMap(videoEntity -> {
+                    String originalPath = videoEntity.getPath();
+
+                    return fileService.deleteFile(originalPath)
+                            .flatMap(backupPath ->
+                                    videoRepository.delete(videoEntity)
+                                            .then(fileService.clearBackup(backupPath))
+                            );
+                });
+
     }
 
 
     private VideoResponse toDomainVideo(VideoEntity video){
-        VideoResponse response = new VideoResponse(
+        return new VideoResponse(
                 video.getId(),
                 video.getName(),
                 video.getDescription(),
                 video.getPath(),
                 video.getCreatedAt()
         );
-        System.out.println(response);
-        return response;
     }
 
 }
