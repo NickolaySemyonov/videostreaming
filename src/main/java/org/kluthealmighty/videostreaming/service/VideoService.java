@@ -38,7 +38,7 @@ public class VideoService {
 
 
     public Mono<VideoResponse> createVideo(FilePart filePart, CreateVideoRequest videoToCreate) {
-        return fileService.saveFile(filePart)
+        return  fileService.saveFile(filePart)
                 .flatMap(videoPath -> {
                     VideoEntity videoEntity = new VideoEntity(
                             videoToCreate.name(),
@@ -55,15 +55,22 @@ public class VideoService {
     public Mono<VideoResponse> updateVideo(UUID id, FilePart filePart, CreateVideoRequest request) {
         return videoRepository.findById(id)
                 .switchIfEmpty(Mono.error(new Exception("Video not found: " + id)))
-                .flatMap(existing ->
-                        fileService.updateFile(existing.getPath(), filePart)
-                                .flatMap(newPath -> {
-                                    existing.setName(request.name());
-                                    existing.setDescription(request.description());
-                                    existing.setPath(newPath);
-                                    return videoRepository.save(existing);
-                                })
-                )
+                .flatMap(existing -> {
+                    String oldPath = existing.getPath();
+
+                    return fileService.updateFile(oldPath, filePart)
+                            .flatMap(newPath -> {
+                                existing.setName(request.name());
+                                existing.setDescription(request.description());
+                                existing.setPath(newPath);
+                                return videoRepository.save(existing);
+                            })
+                            // Используем сохраненный oldPath для очистки бэкапа
+                            .flatMap(savedVideo ->
+                                    fileService.clearBackup(oldPath)
+                                            .thenReturn(savedVideo)
+                            );
+                })
                 .map(this::toDomainVideo)
                 .doOnSuccess(v -> {
                     assert v != null;
@@ -95,14 +102,11 @@ public class VideoService {
 
 
 
-
-
-
-
-
-
     public Mono<Void> deleteVideo(UUID id){
-        return videoRepository.deleteById(id);
+        return videoRepository.findById(id)
+                .flatMap(videoEntity -> fileService.deleteFile(videoEntity.getPath())
+                        .then(videoRepository.delete(videoEntity))
+                );
     }
 
 
