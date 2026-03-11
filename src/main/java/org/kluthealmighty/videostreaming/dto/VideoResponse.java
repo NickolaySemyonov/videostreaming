@@ -1,4 +1,4 @@
-package org.kluthealmighty.videostreaming.DTO;
+package org.kluthealmighty.videostreaming.dto;
 
 import java.time.LocalDateTime;
 import java.util.UUID;

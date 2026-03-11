@@ -1,8 +1,8 @@
 package org.kluthealmighty.videostreaming.controller;
 
-import org.kluthealmighty.videostreaming.DTO.CreateVideoRequest;
-import org.kluthealmighty.videostreaming.DTO.UpdateVideoRequest;
-import org.kluthealmighty.videostreaming.DTO.VideoResponse;
+import org.kluthealmighty.videostreaming.dto.CreateVideoRequest;
+import org.kluthealmighty.videostreaming.dto.UpdateVideoRequest;
+import org.kluthealmighty.videostreaming.dto.VideoResponse;
 import org.kluthealmighty.videostreaming.service.VideoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -43,13 +43,13 @@ public class VideoController {
     @PostMapping
     public Mono<ResponseEntity<VideoResponse>> createVideo(
             @RequestPart("file") FilePart filePart,
-            @RequestPart("videoToCreate") CreateVideoRequest videoToCreate
-            ){
-        String filename = filePart.filename();
-        System.out.println("Receiving file: " + filename);
-        System.out.println(videoToCreate);
+            @RequestPart("videoToCreate") CreateVideoRequest request
+    ) {
+        //String filename = filePart.filename();
+        //System.out.println("Receiving file: " + filename);
+        //System.out.println(request);
 
-        return videoService.createVideo(filePart, videoToCreate)
+        return videoService.createVideo(filePart, request)
                 .map(videoResponse -> ResponseEntity.status(HttpStatus.CREATED).body(videoResponse))
                 .onErrorResume(e -> {
                     System.err.println("Error: " + e.getMessage());
@@ -57,19 +57,13 @@ public class VideoController {
                 });
     }
 
-//    @PutMapping("/{id}")
-//    public ResponseEntity<VideoResponse> updateVideo(@PathVariable UUID id, @RequestBody UpdateVideoRequest videoToUpdate){
-//        VideoResponse updatedVideo = videoService.updateVideo(id, videoToUpdate);
-//        return ResponseEntity.status(HttpStatus.OK).body(updatedVideo);
-//    }
-//
 
     @PatchMapping("/{id}")
     public Mono<ResponseEntity<VideoResponse>> updateVideoMetadata(
             @PathVariable UUID id,
-            @RequestBody UpdateVideoRequest updateRequest
+            @RequestBody UpdateVideoRequest request
     ) {
-        return videoService.updateVideoMetadata(id, updateRequest)
+        return videoService.updateVideoMeta(id, request)
                 .map(ResponseEntity::ok)
                 .defaultIfEmpty(ResponseEntity.notFound().build());
     }
@@ -78,7 +72,7 @@ public class VideoController {
     public Mono<ResponseEntity<VideoResponse>> updateVideo(
             @PathVariable UUID id,
             @RequestPart("file") FilePart filePart,
-            @RequestPart("videoToUpdate") CreateVideoRequest videoToUpdate
+            @RequestPart("videoToUpdate") UpdateVideoRequest videoToUpdate
     ) {
         return videoService.updateVideo(id, filePart, videoToUpdate)
                 .map(ResponseEntity::ok)
