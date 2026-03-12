@@ -5,6 +5,8 @@ import org.kluthealmighty.videostreaming.dto.CreateVideoRequest;
 import org.kluthealmighty.videostreaming.dto.UpdateVideoRequest;
 import org.kluthealmighty.videostreaming.dto.VideoResponse;
 import org.kluthealmighty.videostreaming.entity.VideoEntity;
+import org.kluthealmighty.videostreaming.exceptions.VideoNotFoundException;
+import org.kluthealmighty.videostreaming.exceptions.VideoProcessingException;
 import org.kluthealmighty.videostreaming.repository.VideoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.codec.multipart.FilePart;
@@ -34,7 +36,7 @@ public class VideoService {
 
     public Mono<VideoResponse> findVideoById(UUID id){
         return videoRepository.findById(id)
-                .switchIfEmpty(Mono.error(new Error("Video not found")))
+                .switchIfEmpty(Mono.error(new VideoNotFoundException(id)))
                 .map(this::toDomainVideo);
     }
 
@@ -51,7 +53,7 @@ public class VideoService {
 
     public Mono<VideoResponse> updateVideo(UUID id, FilePart filePart, UpdateVideoRequest request) {
         return videoRepository.findById(id)
-                .switchIfEmpty(Mono.error(new Error("Video not found")))
+                .switchIfEmpty(Mono.error(new VideoNotFoundException(id)))
                 .flatMap(existingVideo ->
                         fileService.saveFile(filePart)
                                 .flatMap(newFilePath ->
@@ -67,17 +69,17 @@ public class VideoService {
 
     public Mono<VideoResponse> updateVideoMeta(UUID id, UpdateVideoRequest request){
         return videoRepository.findById(id)
-                .switchIfEmpty(Mono.error(new Error("Video not found")))
+                .switchIfEmpty(Mono.error(new VideoNotFoundException(id)))
                 .flatMap(existingVideo -> updateVideoEntity(existingVideo, request, null))
                 .map(this::toDomainVideo);
     }
 
     public Mono<Void> deleteVideo (UUID id){
         return videoRepository.findById(id)
-                .switchIfEmpty(Mono.error(new Error("Video not found")))
+                .switchIfEmpty(Mono.error(new VideoNotFoundException(id)))
                 .flatMap(existingVideo -> videoRepository.delete(existingVideo)
                         .then(fileService.deleteFile(existingVideo.getPath()))
-                        .onErrorResume(_ -> Mono.error(new Error("Failed to delete video")))
+                        .onErrorResume(_ -> Mono.error(new VideoProcessingException("Failed to delete video")))
                 );
     }
 
@@ -103,8 +105,8 @@ public class VideoService {
      * rollback for create operation
      * */
     private <T> Mono<T> withCleanupOnError(Mono<T> source, String filePath) {
-        return source.onErrorResume(error ->
-                cleanupFile(filePath).then(Mono.error(new Error("Failed to create video", error)))
+        return source.onErrorResume(_ ->
+                cleanupFile(filePath).then(Mono.error(new VideoProcessingException("Failed to create video")))
         );
     }
 
@@ -123,7 +125,7 @@ public class VideoService {
                 .onErrorResume(error -> {
                     log.error("Operation failed, cleaning up new file: {}", newFilePath, error);
                     return cleanupFile(newFilePath)
-                            .then(Mono.error(error)); // Propagate original error, not wrapped
+                            .then(Mono.error(new VideoProcessingException("Failed to update video")));
                 });
     }
 

@@ -23,20 +23,20 @@ public class VideoController {
     private VideoService videoService;
 
     @GetMapping("/{id}")
-    public Mono<ResponseEntity<VideoResponse>> getVideo(@PathVariable UUID id){
+    public Mono<ResponseEntity<VideoResponse>> getVideo(@PathVariable UUID id) {
         return videoService.findVideoById(id)
-                .map(videoResponse -> ResponseEntity.status(HttpStatus.OK).body(videoResponse));
+                .map(ResponseEntity::ok);
     }
 
     @GetMapping
-    public Mono<ResponseEntity<Flux<VideoResponse>>> getAllVideos(){
+    public Mono<ResponseEntity<Flux<VideoResponse>>> getAllVideos() {
         return videoService.findAllVideo()
                 .collectList()
                 .map(list -> {
-                    if (list.isEmpty())
+                    if (list.isEmpty()) {
                         return ResponseEntity.noContent().build();
-                    else
-                        return ResponseEntity.status(HttpStatus.OK).body(Flux.fromIterable(list));
+                    }
+                    return ResponseEntity.ok(Flux.fromIterable(list));
                 });
     }
 
@@ -45,18 +45,9 @@ public class VideoController {
             @RequestPart("file") FilePart filePart,
             @RequestPart("videoToCreate") CreateVideoRequest request
     ) {
-        //String filename = filePart.filename();
-        //System.out.println("Receiving file: " + filename);
-        //System.out.println(request);
-
         return videoService.createVideo(filePart, request)
-                .map(videoResponse -> ResponseEntity.status(HttpStatus.CREATED).body(videoResponse))
-                .onErrorResume(e -> {
-                    System.err.println("Error: " + e.getMessage());
-                    return Mono.just(ResponseEntity.badRequest().build());
-                });
+                .map(videoResponse -> ResponseEntity.status(HttpStatus.CREATED).body(videoResponse));
     }
-
 
     @PatchMapping("/{id}")
     public Mono<ResponseEntity<VideoResponse>> updateVideoMetadata(
@@ -64,24 +55,22 @@ public class VideoController {
             @RequestBody UpdateVideoRequest request
     ) {
         return videoService.updateVideoMeta(id, request)
-                .map(ResponseEntity::ok)
-                .defaultIfEmpty(ResponseEntity.notFound().build());
+                .map(ResponseEntity::ok);
     }
 
-    @PutMapping(value = "/{id}")
+    @PutMapping("/{id}")
     public Mono<ResponseEntity<VideoResponse>> updateVideo(
             @PathVariable UUID id,
             @RequestPart("file") FilePart filePart,
             @RequestPart("videoToUpdate") UpdateVideoRequest videoToUpdate
     ) {
         return videoService.updateVideo(id, filePart, videoToUpdate)
-                .map(ResponseEntity::ok)
-                .defaultIfEmpty(ResponseEntity.notFound().build());
+                .map(ResponseEntity::ok);
     }
 
-
     @DeleteMapping("/{id}")
-    public Mono<ResponseEntity<Void>> deleteVideo(@PathVariable UUID id){
-        return videoService.deleteVideo(id).map(_ -> ResponseEntity.noContent().build());
+    public Mono<ResponseEntity<Void>> deleteVideo(@PathVariable UUID id) {
+        return videoService.deleteVideo(id)
+                .map(_ -> ResponseEntity.noContent().build());
     }
 }
