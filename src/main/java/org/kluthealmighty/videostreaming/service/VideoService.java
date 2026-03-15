@@ -5,8 +5,8 @@ import org.kluthealmighty.videostreaming.dto.CreateVideoRequest;
 import org.kluthealmighty.videostreaming.dto.UpdateVideoRequest;
 import org.kluthealmighty.videostreaming.dto.VideoResponse;
 import org.kluthealmighty.videostreaming.entity.VideoEntity;
+import org.kluthealmighty.videostreaming.enums.FilePartType;
 import org.kluthealmighty.videostreaming.exceptions.VideoNotFoundException;
-import org.kluthealmighty.videostreaming.exceptions.VideoProcessingException;
 import org.kluthealmighty.videostreaming.repository.VideoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.codec.multipart.FilePart;
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.UUID;
+import java.util.*;
 
 import static reactor.netty.http.HttpConnectionLiveness.log;
 
@@ -28,8 +28,9 @@ public class VideoService {
     @Autowired
     private FileService fileService;
 
+
     // ======== API ======== //
-    public Flux<VideoResponse> findAllVideo(){
+    public Flux<VideoResponse> findAllVideos(){
         return videoRepository.findAll()
                 .map(this::toDomainVideo);
     }
@@ -40,114 +41,156 @@ public class VideoService {
                 .map(this::toDomainVideo);
     }
 
-
-    public Mono<VideoResponse> createVideo(FilePart filePart, CreateVideoRequest request) {
-        return fileService.saveFile(filePart)
-                .flatMap(filePath ->
-                        withCleanupOnError(
-                                createVideoEntity(request, filePath).map(this::toDomainVideo),
-                                filePath
-                        )
-                );
+    public Mono<VideoResponse> createVideo(CreateVideoRequest request, FilePart thumbnailPart, FilePart videoPart) {
+        return Mono.usingWhen(
+                //Context
+                Mono.just(new CreateContext()),
+                //Action
+                ctx -> fileService.saveFile(thumbnailPart, FilePartType.THUMBNAIL)
+                        .flatMap(thumbnailPath -> {
+                            ctx.thumbnailPath = thumbnailPath;
+                            return fileService.saveFile(videoPart, FilePartType.VIDEO);
+                        })
+                        .flatMap(videoPath -> {
+                            ctx.videoPath = videoPath;
+                            return createVideoEntity(request, ctx.thumbnailPath, ctx.videoPath);
+                        })
+                        .map(this::toDomainVideo)
+                        .doOnSuccess(_ -> log.info("Successfully created video")),
+                //onSuccess
+                ctx -> ctx.cleanup(fileService),
+                //onError
+                (ctx, _) -> ctx.rollback(fileService),
+                //onCancel
+                ctx -> ctx.rollback(fileService)
+        );
     }
 
-    public Mono<VideoResponse> updateVideo(UUID id, FilePart filePart, UpdateVideoRequest request) {
-        return videoRepository.findById(id)
-                .switchIfEmpty(Mono.error(new VideoNotFoundException(id)))
-                .flatMap(existingVideo ->
-                        fileService.saveFile(filePart)
-                                .flatMap(newFilePath ->
-                                        withFileUpdate(
-                                                updateVideoEntity(existingVideo, request, newFilePath)
-                                                        .map(this::toDomainVideo),
-                                                newFilePath,
-                                                existingVideo.getPath()
-                                        )
-                                )
-                );
+    public Mono<VideoResponse> updateVideo(UUID videoId, UpdateVideoRequest request, FilePart thumbnailPart){
+        Mono<FilePart> thumbnailFilePartMono = Mono.justOrEmpty(thumbnailPart);
+        return Mono.usingWhen(
+                //Context
+                Mono.just(new UpdateContext()),
+                //Action
+                ctx -> videoRepository.findById(videoId)
+                        .switchIfEmpty(Mono.error(new VideoNotFoundException(videoId)))
+                        .flatMap(videoEntity -> {
+                            ctx.existingVideoEntity = videoEntity;
+                            ctx.oldThumbnailPath = videoEntity.getThumbnailPath();
+
+                            return thumbnailFilePartMono
+                                    .flatMap(filePart -> fileService.saveFile(filePart, FilePartType.THUMBNAIL))
+                                    .defaultIfEmpty(videoEntity.getThumbnailPath());
+                        })
+                        .flatMap(newThumbnailPath -> {
+                            ctx.newThumbnailPath = newThumbnailPath;
+                            return updateVideoEntity(ctx.existingVideoEntity, request, ctx.newThumbnailPath);
+                        })
+                        .map(this::toDomainVideo)
+                        .doOnSuccess(_ -> log.info("Successfully updated video with id: " + videoId)),
+                //onSuccess
+                ctx -> ctx.cleanup(fileService),
+                //onError
+                (ctx, _) -> ctx.rollback(fileService),
+                //onCancel
+                ctx -> ctx.cleanup(fileService)
+        );
     }
 
-    public Mono<VideoResponse> updateVideoMeta(UUID id, UpdateVideoRequest request){
-        return videoRepository.findById(id)
-                .switchIfEmpty(Mono.error(new VideoNotFoundException(id)))
-                .flatMap(existingVideo -> updateVideoEntity(existingVideo, request, null))
-                .map(this::toDomainVideo);
-    }
-
-    public Mono<Void> deleteVideo (UUID id){
-        return videoRepository.findById(id)
-                .switchIfEmpty(Mono.error(new VideoNotFoundException(id)))
-                .flatMap(existingVideo -> videoRepository.delete(existingVideo)
-                        .then(fileService.deleteFile(existingVideo.getPath()))
-                        .onErrorResume(_ -> Mono.error(new VideoProcessingException("Failed to delete video")))
-                );
-    }
-
-
-
-
-
-
-    // ======== HELPERS ======== //
-
-    /**
-     * deletes selected file, does not propagate fileService errors
-     **/
-    private Mono<Void> cleanupFile(String filePath) {
-        return fileService.deleteFile(filePath)
-                .doOnSuccess(_ -> log.info("Cleaned up: {}", filePath))
-                .doOnError(e -> log.error("Failed to cleanup: {}", filePath, e))
-                .onErrorResume(_ -> Mono.empty()); //ignore fileService errors
-    }
-
-
-    /**
-     * rollback for create operation
-     * */
-    private <T> Mono<T> withCleanupOnError(Mono<T> source, String filePath) {
-        return source.onErrorResume(_ ->
-                cleanupFile(filePath).then(Mono.error(new VideoProcessingException("Failed to create video")))
+    public Mono<Void> deleteVideo(UUID videoId){
+        return Mono.usingWhen(
+                //Context
+                Mono.just(new DeleteContext()),
+                //Action
+                ctx -> videoRepository.findById(videoId)
+                        .switchIfEmpty(Mono.error(new VideoNotFoundException(videoId)))
+                        .flatMap(videoEntity -> {
+                            ctx.thumbnailPath = videoEntity.getThumbnailPath();
+                            ctx.videoPath = videoEntity.getVideoPath();
+                            return videoRepository.delete(videoEntity);
+                        })
+                        .doOnSuccess(_ -> log.info("Successfully deleted video with id: " + videoId)),
+                //onSuccess
+                ctx -> ctx.cleanup(fileService),
+                //onError
+                (ctx, _) -> ctx.rollback(fileService),
+                //onCancel
+                ctx -> ctx.rollback(fileService)
         );
     }
 
 
-    private <T> Mono<T> withFileUpdate(Mono<T> operation, String newFilePath, String oldFilePath) {
-        return operation
-                .flatMap(result ->
-                        fileService.deleteFile(oldFilePath)
-                                .thenReturn(result)
-                                .doOnSuccess(_ -> log.info("Old file deleted: {}", oldFilePath))
-                                .onErrorResume(deleteError -> {
-                                    log.error("Failed to delete old file: {}", oldFilePath, deleteError);
-                                    return Mono.just(result);
-                                })
-                )
-                .onErrorResume(error -> {
-                    log.error("Operation failed, cleaning up new file: {}", newFilePath, error);
-                    return cleanupFile(newFilePath)
-                            .then(Mono.error(new VideoProcessingException("Failed to update video")));
-                });
+    // ======== HELPERS ======== //
+    interface FileOperationContext {
+        Mono<Void> cleanup(FileService fileService);
+        Mono<Void> rollback(FileService fileService);
+    }
+
+    private static class CreateContext implements FileOperationContext{
+        String thumbnailPath;
+        String videoPath;
+
+        @Override
+        public Mono<Void> cleanup(FileService fileService) {
+            return Mono.empty();
+        }
+
+        @Override
+        public Mono<Void> rollback(FileService fileService) {
+            return Flux.just(thumbnailPath, videoPath)
+                    .flatMap(fileService::deleteFile)
+                    .then();
+        }
+    }
+
+    private static class UpdateContext implements FileOperationContext{
+        String oldThumbnailPath;
+        String newThumbnailPath;
+        VideoEntity existingVideoEntity;
+
+        @Override
+        public Mono<Void> cleanup(FileService fileService) {
+            if (!oldThumbnailPath.equals(newThumbnailPath))
+                return fileService.deleteFile(oldThumbnailPath);
+            return Mono.empty();
+        }
+
+        @Override
+        public Mono<Void> rollback(FileService fileService) {
+            return fileService.deleteFile(newThumbnailPath);
+        }
+    }
+
+    private static class DeleteContext implements FileOperationContext{
+        String thumbnailPath;
+        String videoPath;
+
+        @Override
+        public Mono<Void> cleanup(FileService fileService){
+            return Flux.just(thumbnailPath, videoPath)
+                    .flatMap(fileService::deleteFile)
+                    .then();
+        }
+
+        @Override
+        public Mono<Void> rollback(FileService fileService) {
+            return Mono.empty();
+        }
     }
 
 
-
-
-
-
     // ======== ENTITY-DTO ======== //
-
-
-    private Mono<VideoEntity> createVideoEntity(CreateVideoRequest request, String filePath){
+    private Mono<VideoEntity> createVideoEntity(CreateVideoRequest request, String thumbnailPath, String videoPath){
         VideoEntity videoEntity = new VideoEntity(
                 request.name(),
                 request.description(),
-                filePath
+                thumbnailPath,
+                videoPath
         );
         return videoRepository.save(videoEntity);
     }
 
-
-    private Mono<VideoEntity> updateVideoEntity(VideoEntity existingVideo, UpdateVideoRequest request, String newFilePath) {
+    private Mono<VideoEntity> updateVideoEntity(VideoEntity existingVideo, UpdateVideoRequest request, String newThumbnailPath) {
         VideoEntity updatedVideo = new VideoEntity();
         updatedVideo.setId(existingVideo.getId());
         updatedVideo.setName(
@@ -160,24 +203,24 @@ public class VideoService {
                         ? request.description()
                         : existingVideo.getDescription()
         );
-        updatedVideo.setPath(
-                newFilePath != null
-                        ? newFilePath
-                        : existingVideo.getPath()
+        updatedVideo.setThumbnailPath(
+                newThumbnailPath != null
+                        ? newThumbnailPath
+                        : existingVideo.getThumbnailPath()
         );
+        updatedVideo.setVideoPath(existingVideo.getVideoPath());
         updatedVideo.setCreatedAt(existingVideo.getCreatedAt());
         return videoRepository.save(updatedVideo);
     }
-
 
     private VideoResponse toDomainVideo(VideoEntity video){
         return new VideoResponse(
                 video.getId(),
                 video.getName(),
                 video.getDescription(),
-                video.getPath(),
+                video.getThumbnailPath(),
+                video.getVideoPath(),
                 video.getCreatedAt()
         );
     }
-
 }

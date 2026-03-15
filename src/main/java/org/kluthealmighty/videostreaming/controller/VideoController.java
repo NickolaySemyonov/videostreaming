@@ -30,7 +30,7 @@ public class VideoController {
 
     @GetMapping
     public Mono<ResponseEntity<Flux<VideoResponse>>> getAllVideos() {
-        return videoService.findAllVideo()
+        return videoService.findAllVideos()
                 .collectList()
                 .map(list -> {
                     if (list.isEmpty()) {
@@ -42,30 +42,22 @@ public class VideoController {
 
     @PostMapping
     public Mono<ResponseEntity<VideoResponse>> createVideo(
-            @RequestPart("file") FilePart filePart,
-            @RequestPart("videoToCreate") CreateVideoRequest request
+            @RequestPart("videoToCreate") CreateVideoRequest request,
+            @RequestPart("thumbnail") FilePart thumbnailPart,
+            @RequestPart("video") FilePart videoPart
     ) {
-        return videoService.createVideo(filePart, request)
+        return videoService.createVideo(request, thumbnailPart, videoPart)
                 .map(videoResponse -> ResponseEntity.status(HttpStatus.CREATED).body(videoResponse));
-    }
-
-    @PatchMapping("/{id}")
-    public Mono<ResponseEntity<VideoResponse>> updateVideoMetadata(
-            @PathVariable UUID id,
-            @RequestBody UpdateVideoRequest request
-    ) {
-        return videoService.updateVideoMeta(id, request)
-                .map(ResponseEntity::ok);
     }
 
     @PutMapping("/{id}")
     public Mono<ResponseEntity<VideoResponse>> updateVideo(
             @PathVariable UUID id,
-            @RequestPart("file") FilePart filePart,
-            @RequestPart("videoToUpdate") UpdateVideoRequest videoToUpdate
+            @RequestPart("videoToUpdate") UpdateVideoRequest request,
+            @RequestPart(value = "thumbnail", required = false) FilePart thumbnailPart
     ) {
-        return videoService.updateVideo(id, filePart, videoToUpdate)
-                .map(ResponseEntity::ok);
+       return videoService.updateVideo(id,request,thumbnailPart)
+               .map(ResponseEntity::ok);
     }
 
     @DeleteMapping("/{id}")

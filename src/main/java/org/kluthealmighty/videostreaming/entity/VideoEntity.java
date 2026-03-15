@@ -22,8 +22,11 @@ public class VideoEntity {
     @Column("video_description")
     private String description;
 
+    @Column("thumbnail_path")
+    private String thumbnailPath;
+
     @Column("video_path")
-    private String path;
+    private String videoPath;
 
     @Column("created_at")
     private LocalDateTime createdAt;
@@ -52,12 +55,20 @@ public class VideoEntity {
         this.description = description;
     }
 
-    public String getPath() {
-        return path;
+    public String getThumbnailPath() {
+        return thumbnailPath;
     }
 
-    public void setPath(String path) {
-        this.path = path;
+    public void setThumbnailPath(String thumbnailPath) {
+        this.thumbnailPath = thumbnailPath;
+    }
+
+    public String getVideoPath() {
+        return videoPath;
+    }
+
+    public void setVideoPath(String videoPath) {
+        this.videoPath = videoPath;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -71,10 +82,11 @@ public class VideoEntity {
     public VideoEntity() {
     }
 
-    public VideoEntity(String name, String description, String path) {
+    public VideoEntity(String name, String description, String thumbnailPath, String videoPath) {
         this.name = name;
         this.description = description;
-        this.path = path;
+        this.thumbnailPath = thumbnailPath;
+        this.videoPath = videoPath;
         this.createdAt = LocalDateTime.now();
     }
 }
