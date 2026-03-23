@@ -1,6 +1,6 @@
 package org.kluthealmighty.videostreaming.dto;
 
-public record UserCredentials(
+public record AuthRequest(
         String email,
         String password
 ) {

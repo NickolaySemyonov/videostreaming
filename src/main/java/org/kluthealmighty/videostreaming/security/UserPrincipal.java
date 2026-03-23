@@ -1,7 +1,6 @@
 package org.kluthealmighty.videostreaming.security;
 
 import org.jspecify.annotations.Nullable;
-import org.kluthealmighty.videostreaming.entity.UserEntity;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -10,26 +9,33 @@ import java.util.Collection;
 import java.util.List;
 
 public class UserPrincipal implements UserDetails {
+    private final Long userId;
+    private final String email;
+    private final String password;
+    private final Collection<? extends GrantedAuthority> authorities;
 
-    private final UserEntity userEntity;
-
-    public UserPrincipal(UserEntity userEntity){
-        this.userEntity = userEntity;
+    public UserPrincipal(Long userId, String email, String password) {
+        this.userId = userId;
+        this.email = email;
+        this.password = password;
+        this.authorities = List.of(new SimpleGrantedAuthority("USER"));
     }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("USER"));
+        return authorities;
     }
+
+    public Long getUserId(){return userId;}
 
     @Override
     public @Nullable String getPassword() {
-        return userEntity.getPasswordHash();
+        return password;
     }
 
     @Override
     public String getUsername() {
-        return userEntity.getEmail();
+        return email;
     }
 
     @Override

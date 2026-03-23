@@ -1,6 +1,6 @@
 package org.kluthealmighty.videostreaming.service;
 
-import org.kluthealmighty.videostreaming.dto.UserCredentials;
+import org.kluthealmighty.videostreaming.dto.AuthRequest;
 import org.kluthealmighty.videostreaming.dto.UserResponse;
 import org.kluthealmighty.videostreaming.entity.UserEntity;
 import org.kluthealmighty.videostreaming.repository.UserRepository;
@@ -20,8 +20,13 @@ public class UserService{
 
     }
 
+    public Mono<UserResponse> findUserByEmail(String email){
+        return userRepository.findByEmail(email)
+                .map(this::toDomainUser);
+    }
 
-    public Mono<UserResponse> createUser(UserCredentials request){
+
+    public Mono<UserResponse> createUser(AuthRequest request){
         return userRepository.existsByEmail(request.email())
                 .filter(exists -> !exists)
                 .switchIfEmpty(Mono.error(new RuntimeException("User already exists with email: " + request.email())))
@@ -29,7 +34,7 @@ public class UserService{
                 .map(this::toDomainUser);
     }
 
-    private Mono<UserEntity> createUserEntity(UserCredentials request){
+    private Mono<UserEntity> createUserEntity(AuthRequest request){
         String encryptedPassword = passwordEncoder.encode(request.password());
         UserEntity userEntity = new UserEntity(
                 null,
@@ -46,24 +51,5 @@ public class UserService{
                 userEntity.getPasswordHash()
         );
     }
-
-//    public Mono<String> verify(UserCredentials credentials) {
-//        UsernamePasswordAuthenticationToken token =
-//                new UsernamePasswordAuthenticationToken(
-//                        credentials.email(),
-//                        credentials.password()
-//                );
-//
-//        return authenticationManager.authenticate(token)
-//                .map(auth -> {
-//                    if (auth.isAuthenticated()) {
-//                        return jwtService.generateToken(credentials.email());
-//                    } else {
-//                        return "Fail";
-//                    }
-//                })
-//                .onErrorReturn("Fail"); // Handle authentication errors
-//    }
-
 
 }
