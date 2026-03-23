@@ -31,6 +31,9 @@ public class VideoEntity {
     @Column("created_at")
     private LocalDateTime createdAt;
 
+    @Column("owner_id")
+    private Long ownerId;
+
     public UUID getId() {
         return id;
     }
@@ -79,6 +82,14 @@ public class VideoEntity {
         this.createdAt = createdAt;
     }
 
+    public Long getOwnerId() {
+        return ownerId;
+    }
+
+    public void setOwnerId(Long ownerId) {
+        this.ownerId = ownerId;
+    }
+
     public VideoEntity() {
     }
 
@@ -88,5 +99,15 @@ public class VideoEntity {
         this.thumbnailPath = thumbnailPath;
         this.videoPath = videoPath;
         this.createdAt = LocalDateTime.now();
+    }
+
+    public VideoEntity(UUID id, String name, String description, String thumbnailPath, String videoPath, LocalDateTime createdAt, Long ownerId) {
+        this.id = id;
+        this.name = name;
+        this.description = description;
+        this.thumbnailPath = thumbnailPath;
+        this.videoPath = videoPath;
+        this.createdAt = createdAt;
+        this.ownerId = ownerId;
     }
 }

@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 import static reactor.netty.http.HttpConnectionLiveness.log;
@@ -41,7 +42,12 @@ public class VideoService {
                 .map(this::toDomainVideo);
     }
 
-    public Mono<VideoResponse> createVideo(CreateVideoRequest request, FilePart thumbnailPart, FilePart videoPart) {
+    public Mono<Boolean> isOwner(Long userId,UUID videoId){
+        return videoRepository.findById(videoId)
+                .map(videoEntity -> videoEntity.getOwnerId().equals(userId));
+    }
+
+    public Mono<VideoResponse> createVideo(CreateVideoRequest request, FilePart thumbnailPart, FilePart videoPart, Long userId) {
         return Mono.usingWhen(
                 //Context
                 Mono.just(new CreateContext()),
@@ -53,7 +59,7 @@ public class VideoService {
                         })
                         .flatMap(videoPath -> {
                             ctx.videoPath = videoPath;
-                            return createVideoEntity(request, ctx.thumbnailPath, ctx.videoPath);
+                            return createVideoEntity(request, ctx.thumbnailPath, ctx.videoPath, userId);
                         })
                         .map(this::toDomainVideo)
                         .doOnSuccess(_ -> log.info("Successfully created video")),
@@ -180,12 +186,15 @@ public class VideoService {
 
 
     // ======== ENTITY-DTO ======== //
-    private Mono<VideoEntity> createVideoEntity(CreateVideoRequest request, String thumbnailPath, String videoPath){
+    private Mono<VideoEntity> createVideoEntity(CreateVideoRequest request, String thumbnailPath, String videoPath, Long ownerId){
         VideoEntity videoEntity = new VideoEntity(
+                null,
                 request.name(),
                 request.description(),
                 thumbnailPath,
-                videoPath
+                videoPath,
+                LocalDateTime.now(),
+                ownerId
         );
         return videoRepository.save(videoEntity);
     }
@@ -210,6 +219,7 @@ public class VideoService {
         );
         updatedVideo.setVideoPath(existingVideo.getVideoPath());
         updatedVideo.setCreatedAt(existingVideo.getCreatedAt());
+        updatedVideo.setOwnerId(existingVideo.getOwnerId());
         return videoRepository.save(updatedVideo);
     }
 

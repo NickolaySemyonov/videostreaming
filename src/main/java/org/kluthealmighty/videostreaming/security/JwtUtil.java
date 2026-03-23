@@ -24,7 +24,7 @@ public class JwtUtil {
     @Value("${jwt.secret}")
     private String secretKey;
 
-    public static final Duration ACCESS_TOKEN_DURATION = Duration.ofMinutes(1);
+    public static final Duration ACCESS_TOKEN_DURATION = Duration.ofMinutes(15);
     public static final Duration REFRESH_TOKEN_DURATION = Duration.ofDays(7);
 
 

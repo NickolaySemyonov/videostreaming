@@ -2,21 +2,16 @@ DROP TABLE IF EXISTS users CASCADE;
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL
-);
+    password TEXT NOT NULL,
 
-DROP TABLE IF EXISTS channel CASCADE;
-CREATE TABLE channel (
-    id SERIAL PRIMARY KEY,
     channel_tag VARCHAR(64) UNIQUE,
+    channel_name VARCHAR(255) NOT NULL,
+    channel_description VARCHAR(255),
+
     banner_path TEXT,
     miniature_path TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    owner_id INTEGER NOT NULL,
-    FOREIGN KEY (owner_id) REFERENCES users(id)
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
 
 DROP TABLE IF EXISTS video CASCADE;
 CREATE TABLE video (
@@ -27,6 +22,6 @@ CREATE TABLE video (
     video_path VARCHAR(500) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    channel_id INTEGER NOT NULL,
-    FOREIGN KEY (channel_id) REFERENCES channel(id)
+    owner_id INTEGER NOT NULL,
+    FOREIGN KEY (owner_id) REFERENCES users(id)
 );

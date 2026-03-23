@@ -29,7 +29,7 @@ public class AuthController {
     private ReactiveAuthenticationManager authenticationManager;
 
     @PostMapping("/register")
-    public Mono<ResponseEntity<String>> registerUser(
+    public Mono<ResponseEntity<String>> register(
             @RequestBody AuthRequest credentials,
             ServerWebExchange exchange
     ) {
@@ -82,13 +82,13 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public Mono<ResponseEntity<Void>> logout (ServerWebExchange exchange){
+    public Mono<ResponseEntity<Void>> logout(ServerWebExchange exchange){
         jwtService.revokeTokenCookies(exchange.getResponse());
         return Mono.just(ResponseEntity.noContent().build());
     }
 
     @PostMapping("/refresh")
-    public Mono<ResponseEntity<Void>> refresh (ServerWebExchange exchange){
+    public Mono<ResponseEntity<Void>> refresh(ServerWebExchange exchange){
         return jwtService.refresh(exchange)
                 .then(Mono.just(ResponseEntity.noContent().build()));
     }

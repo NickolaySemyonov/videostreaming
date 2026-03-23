@@ -18,6 +18,6 @@ public class UserPrincipalService implements ReactiveUserDetailsService {
     public Mono<UserDetails> findByUsername(String username) {
         return userRepository.findByEmail(username)
                 .switchIfEmpty(Mono.error(new UsernameNotFoundException("User not found with email: " + username)))
-                .map(user -> new UserPrincipal(user.getId(),user.getEmail(), user.getPasswordHash()));
+                .map(user -> new UserPrincipal(user.getId(),user.getEmail(), user.getPassword()));
     }
 }
