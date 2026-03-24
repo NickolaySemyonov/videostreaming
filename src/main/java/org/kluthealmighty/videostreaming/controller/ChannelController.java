@@ -31,7 +31,7 @@ public class ChannelController {
 
     @PutMapping("/me")
     public Mono<ResponseEntity<UserResponse>> updateChannelData(
-            UpdateChannelRequest request,
+            @RequestPart("updateRequest") UpdateChannelRequest request,
             @RequestPart(value = "banner", required = false) FilePart bannerPart,
             @RequestPart(value = "miniature", required = false) FilePart miniaturePart,
             @AuthenticationPrincipal JwtPrincipal principal
