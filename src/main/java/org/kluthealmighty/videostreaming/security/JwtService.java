@@ -14,15 +14,15 @@ public class JwtService {
     @Autowired
     private JwtUtil jwtUtil;
 
-    public void setAccessTokenCookie(ServerHttpResponse response, String email, Long userId) {
-        String token = jwtUtil.generateAccessToken(email, userId);
+    public void setAccessTokenCookie(ServerHttpResponse response, JwtPrincipal principal) {
+        String token = jwtUtil.generateAccessToken(principal);
         Long maxAgeSeconds = jwtUtil.getTokenExpirationSeconds(token);
         ResponseCookie tokenCookie = createTokenCookie("ACCESS_TOKEN", token, maxAgeSeconds);
         response.addCookie(tokenCookie);
     }
 
-    public void setRefreshTokenCookie(ServerHttpResponse response, String email, Long userId) {
-        String token = jwtUtil.generateRefreshToken(email, userId);
+    public void setRefreshTokenCookie(ServerHttpResponse response, JwtPrincipal principal) {
+        String token = jwtUtil.generateRefreshToken(principal);
         Long maxAgeSeconds = jwtUtil.getTokenExpirationSeconds(token);
         ResponseCookie tokenCookie = createTokenCookie("REFRESH_TOKEN", token, maxAgeSeconds);
         response.addCookie(tokenCookie);
@@ -52,8 +52,8 @@ public class JwtService {
         return jwtUtil.validateToken(refreshToken)
                 .flatMap(claims -> {
                     JwtPrincipal principal = jwtUtil.toPrincipal(claims);
-                    setRefreshTokenCookie(exchange.getResponse(), principal.email(), principal.userId());
-                    setAccessTokenCookie(exchange.getResponse(), principal.email(), principal.userId());
+                    setRefreshTokenCookie(exchange.getResponse(), principal);
+                    setAccessTokenCookie(exchange.getResponse(),  principal);
                     return Mono.empty();
                 })
                 .onErrorResume(e -> {

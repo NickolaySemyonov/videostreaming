@@ -4,6 +4,7 @@ import org.kluthealmighty.videostreaming.enums.FilePartType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -17,23 +18,34 @@ public class FileService {
 
     private final Path thumbnailDir;
     private final Path videoDir;
+    private final Path bannerDir;
+    private final Path miniatureDir;
 
     public FileService(
             @Value("${thumbnail_dir}") Path thumbnailDir,
-            @Value("${video_dir}") Path videoDir
+            @Value("${video_dir}") Path videoDir,
+            @Value("${banner_dir}") Path bannerDir,
+            @Value("${miniature_dir}") Path miniatureDir
+
     ) {
         this.thumbnailDir = thumbnailDir;
         this.videoDir = videoDir;
+        this.bannerDir = bannerDir;
+        this.miniatureDir = miniatureDir;
+
         initializeDirectory(thumbnailDir);
         initializeDirectory(videoDir);
+        initializeDirectory(bannerDir);
+        initializeDirectory(miniatureDir);
     }
 
-
-    // ======== API ======== //
+    // region API
     public Mono<String> saveFile(FilePart filePart, FilePartType type) {
         Path uploadDir = switch (type){
             case THUMBNAIL -> thumbnailDir;
             case VIDEO -> videoDir;
+            case BANNER -> bannerDir;
+            case MINIATURE -> miniatureDir;
         };
 
         Path targetPath = generateUniquePath(filePart, uploadDir);
@@ -51,9 +63,9 @@ public class FileService {
             return path;
         }).then().subscribeOn(Schedulers.boundedElastic());
     }
+    // endregion
 
-
-    //========= HELPERS ========== //
+    // region HELPERS
     private void initializeDirectory(Path dir) {
         try {
             if (Files.notExists(dir)) Files.createDirectories(dir);
@@ -70,4 +82,5 @@ public class FileService {
     private boolean isPathEmpty(String path){
         return path == null || path.trim().isEmpty();
     }
+    // endregion
 }

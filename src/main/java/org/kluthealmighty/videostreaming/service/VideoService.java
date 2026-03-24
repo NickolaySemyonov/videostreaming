@@ -7,6 +7,7 @@ import org.kluthealmighty.videostreaming.dto.VideoResponse;
 import org.kluthealmighty.videostreaming.entity.VideoEntity;
 import org.kluthealmighty.videostreaming.enums.FilePartType;
 import org.kluthealmighty.videostreaming.exceptions.VideoNotFoundException;
+import org.kluthealmighty.videostreaming.helpers.FileOperationContext;
 import org.kluthealmighty.videostreaming.repository.VideoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.codec.multipart.FilePart;
@@ -30,19 +31,19 @@ public class VideoService {
     private FileService fileService;
 
 
-    // ======== API ======== //
-    public Flux<VideoResponse> findAllVideos(){
+    // region API
+    public Flux<VideoResponse> findAllVideos() {
         return videoRepository.findAll()
                 .map(this::toDomainVideo);
     }
 
-    public Mono<VideoResponse> findVideoById(UUID id){
+    public Mono<VideoResponse> findVideoById(UUID id) {
         return videoRepository.findById(id)
                 .switchIfEmpty(Mono.error(new VideoNotFoundException(id)))
                 .map(this::toDomainVideo);
     }
 
-    public Mono<Boolean> isOwner(Long userId,UUID videoId){
+    public Mono<Boolean> isOwner(Long userId, UUID videoId) {
         return videoRepository.findById(videoId)
                 .map(videoEntity -> videoEntity.getOwnerId().equals(userId));
     }
@@ -72,7 +73,7 @@ public class VideoService {
         );
     }
 
-    public Mono<VideoResponse> updateVideo(UUID videoId, UpdateVideoRequest request, FilePart thumbnailPart){
+    public Mono<VideoResponse> updateVideo(UUID videoId, UpdateVideoRequest request, FilePart thumbnailPart) {
         Mono<FilePart> thumbnailFilePartMono = Mono.justOrEmpty(thumbnailPart);
         return Mono.usingWhen(
                 //Context
@@ -86,7 +87,7 @@ public class VideoService {
 
                             return thumbnailFilePartMono
                                     .flatMap(filePart -> fileService.saveFile(filePart, FilePartType.THUMBNAIL))
-                                    .defaultIfEmpty(videoEntity.getThumbnailPath());
+                                    .defaultIfEmpty(ctx.oldThumbnailPath);
                         })
                         .flatMap(newThumbnailPath -> {
                             ctx.newThumbnailPath = newThumbnailPath;
@@ -103,7 +104,7 @@ public class VideoService {
         );
     }
 
-    public Mono<Void> deleteVideo(UUID videoId){
+    public Mono<Void> deleteVideo(UUID videoId) {
         return Mono.usingWhen(
                 //Context
                 Mono.just(new DeleteContext()),
@@ -124,15 +125,11 @@ public class VideoService {
                 ctx -> ctx.rollback(fileService)
         );
     }
+    // endregion
 
 
-    // ======== HELPERS ======== //
-    interface FileOperationContext {
-        Mono<Void> cleanup(FileService fileService);
-        Mono<Void> rollback(FileService fileService);
-    }
-
-    private static class CreateContext implements FileOperationContext{
+    // region HELPERS
+    private static class CreateContext implements FileOperationContext {
         String thumbnailPath;
         String videoPath;
 
@@ -149,7 +146,7 @@ public class VideoService {
         }
     }
 
-    private static class UpdateContext implements FileOperationContext{
+    private static class UpdateContext implements FileOperationContext {
         String oldThumbnailPath;
         String newThumbnailPath;
         VideoEntity existingVideoEntity;
@@ -167,12 +164,12 @@ public class VideoService {
         }
     }
 
-    private static class DeleteContext implements FileOperationContext{
+    private static class DeleteContext implements FileOperationContext {
         String thumbnailPath;
         String videoPath;
 
         @Override
-        public Mono<Void> cleanup(FileService fileService){
+        public Mono<Void> cleanup(FileService fileService) {
             return Flux.just(thumbnailPath, videoPath)
                     .flatMap(fileService::deleteFile)
                     .then();
@@ -183,10 +180,10 @@ public class VideoService {
             return Mono.empty();
         }
     }
+    // endregion
 
-
-    // ======== ENTITY-DTO ======== //
-    private Mono<VideoEntity> createVideoEntity(CreateVideoRequest request, String thumbnailPath, String videoPath, Long ownerId){
+    // region ENTITY-DTO
+    private Mono<VideoEntity> createVideoEntity(CreateVideoRequest request, String thumbnailPath, String videoPath, Long ownerId) {
         VideoEntity videoEntity = new VideoEntity(
                 null,
                 request.name(),
@@ -223,7 +220,7 @@ public class VideoService {
         return videoRepository.save(updatedVideo);
     }
 
-    private VideoResponse toDomainVideo(VideoEntity video){
+    private VideoResponse toDomainVideo(VideoEntity video) {
         return new VideoResponse(
                 video.getId(),
                 video.getName(),
@@ -233,4 +230,5 @@ public class VideoService {
                 video.getCreatedAt()
         );
     }
+    // endregion
 }

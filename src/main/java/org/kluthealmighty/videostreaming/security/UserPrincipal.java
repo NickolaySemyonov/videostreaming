@@ -12,12 +12,14 @@ public class UserPrincipal implements UserDetails {
     private final Long userId;
     private final String email;
     private final String password;
+    private final String channelTag;
     private final Collection<? extends GrantedAuthority> authorities;
 
-    public UserPrincipal(Long userId, String email, String password) {
+    public UserPrincipal(Long userId, String email, String password, String channelTag) {
         this.userId = userId;
         this.email = email;
         this.password = password;
+        this.channelTag = channelTag;
         this.authorities = List.of(new SimpleGrantedAuthority("USER"));
     }
 
@@ -36,6 +38,10 @@ public class UserPrincipal implements UserDetails {
     @Override
     public String getUsername() {
         return email;
+    }
+
+    public String getChannelTag() {
+        return channelTag;
     }
 
     @Override

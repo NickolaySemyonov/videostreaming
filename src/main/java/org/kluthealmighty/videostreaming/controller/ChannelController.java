@@ -12,25 +12,30 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
 @RestController
-@RequestMapping("/channel")
 public class ChannelController {
 
     @Autowired
     private UserService userService;
 
-    @GetMapping("/{channelTag}")
-    public Mono<ResponseEntity<UserResponse>> getChannelData(@PathVariable String channelTag){
+    @GetMapping("/channel/{channelTag}")
+    public Mono<ResponseEntity<UserResponse>> getChannelData(@PathVariable String channelTag) {
         return userService.findUserByChannelTag(channelTag)
                 .map(ResponseEntity::ok);
     }
 
-    @PutMapping
+    @GetMapping("/me")
+    public Mono<ResponseEntity<UserResponse>> getOwnChannelData(@AuthenticationPrincipal JwtPrincipal principal) {
+        return userService.findUserByChannelTag(principal.channelTag())
+                .map(ResponseEntity::ok);
+    }
+
+    @PutMapping("/me")
     public Mono<ResponseEntity<UserResponse>> updateChannelData(
             UpdateChannelRequest request,
             @RequestPart(value = "banner", required = false) FilePart bannerPart,
             @RequestPart(value = "miniature", required = false) FilePart miniaturePart,
             @AuthenticationPrincipal JwtPrincipal principal
-    ){
+    ) {
         return userService.updateUser(principal.userId(), request, bannerPart, miniaturePart)
                 .map(ResponseEntity::ok);
     }

@@ -28,17 +28,18 @@ public class JwtUtil {
     public static final Duration REFRESH_TOKEN_DURATION = Duration.ofDays(7);
 
 
-    public String generateAccessToken(String username, Long userId) {
-        return generateToken(username, userId, ACCESS_TOKEN_DURATION);
+    public String generateAccessToken(JwtPrincipal principal) {
+        return generateToken(principal.userId(),principal.email(), principal.channelTag(), ACCESS_TOKEN_DURATION);
     }
 
-    public String generateRefreshToken(String username, Long userId) {
-        return generateToken(username, userId, REFRESH_TOKEN_DURATION);
+    public String generateRefreshToken(JwtPrincipal principal) {
+        return generateToken(principal.userId(),principal.email(), principal.channelTag(),  REFRESH_TOKEN_DURATION);
     }
 
-    private String generateToken(String username, Long userId, Duration duration) {
+    private String generateToken(Long userId, String username, String channelTag, Duration duration) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
+        claims.put("channelTag", channelTag);
 
         return Jwts.builder()
                 .claims()
@@ -73,10 +74,11 @@ public class JwtUtil {
         });
     }
 
-    public JwtPrincipal toPrincipal(Claims claims){
+    public JwtPrincipal toPrincipal(Claims claims) {
         Long userId = claims.get("userId", Long.class);
         String email = claims.getSubject();
-        return new JwtPrincipal(userId, email);
+        String channelTag = claims.get("channelTag", String.class);
+        return new JwtPrincipal(userId, email, channelTag);
     }
 
 

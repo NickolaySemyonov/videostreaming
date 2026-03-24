@@ -2,5 +2,7 @@ package org.kluthealmighty.videostreaming.enums;
 
 public enum FilePartType {
     THUMBNAIL,
-    VIDEO
+    VIDEO,
+    BANNER,
+    MINIATURE
 }

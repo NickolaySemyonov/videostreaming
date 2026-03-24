@@ -1,6 +1,7 @@
 package org.kluthealmighty.videostreaming.controller;
 
 import org.kluthealmighty.videostreaming.dto.AuthRequest;
+import org.kluthealmighty.videostreaming.security.JwtPrincipal;
 import org.kluthealmighty.videostreaming.security.JwtService;
 import org.kluthealmighty.videostreaming.security.UserPrincipal;
 import org.kluthealmighty.videostreaming.service.UserService;
@@ -35,16 +36,10 @@ public class AuthController {
     ) {
         return userService.createUser(credentials)
                 .map(user -> {
-                    jwtService.setAccessTokenCookie(
-                            exchange.getResponse(),
-                            user.email(),
-                            user.id()
-                    );
-                    jwtService.setRefreshTokenCookie(
-                            exchange.getResponse(),
-                            user.email(),
-                            user.id()
-                    );
+                    JwtPrincipal principal = new JwtPrincipal(user.id(), user.email(), user.channelTag());
+
+                    jwtService.setAccessTokenCookie(exchange.getResponse(), principal);
+                    jwtService.setRefreshTokenCookie(exchange.getResponse(), principal);
                     return ResponseEntity
                             .status(HttpStatus.CREATED)
                             .body("Registered and authenticated");
@@ -62,33 +57,31 @@ public class AuthController {
         );
         return authenticationManager.authenticate(auth)
                 .map(authenticated -> {
-                    UserPrincipal principal = (UserPrincipal) authenticated.getPrincipal();
+                    UserPrincipal userPrincipal = (UserPrincipal) authenticated.getPrincipal();
 
-                    if (principal==null)
+                    if (userPrincipal == null)
                         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
 
-                    jwtService.setAccessTokenCookie(
-                            exchange.getResponse(),
-                            principal.getUsername(),
-                            principal.getUserId()
+                    //convert to principal not containing password
+                    JwtPrincipal principal = new JwtPrincipal(
+                            userPrincipal.getUserId(),
+                            userPrincipal.getUsername(),
+                            userPrincipal.getChannelTag()
                     );
-                    jwtService.setRefreshTokenCookie(
-                            exchange.getResponse(),
-                            principal.getUsername(),
-                            principal.getUserId()
-                    );
+                    jwtService.setAccessTokenCookie(exchange.getResponse(), principal);
+                    jwtService.setRefreshTokenCookie(exchange.getResponse(), principal);
                     return ResponseEntity.ok("Logged in");
                 });
     }
 
     @PostMapping("/logout")
-    public Mono<ResponseEntity<Void>> logout(ServerWebExchange exchange){
+    public Mono<ResponseEntity<Void>> logout(ServerWebExchange exchange) {
         jwtService.revokeTokenCookies(exchange.getResponse());
         return Mono.just(ResponseEntity.noContent().build());
     }
 
     @PostMapping("/refresh")
-    public Mono<ResponseEntity<Void>> refresh(ServerWebExchange exchange){
+    public Mono<ResponseEntity<Void>> refresh(ServerWebExchange exchange) {
         return jwtService.refresh(exchange)
                 .then(Mono.just(ResponseEntity.noContent().build()));
     }
