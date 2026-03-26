@@ -2,6 +2,8 @@ package org.kluthealmighty.videostreaming.service;
 
 import org.kluthealmighty.videostreaming.enums.FilePartType;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -12,14 +14,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Map;
 
 @Service
 public class FileService {
 
-    private final Path thumbnailDir;
-    private final Path videoDir;
-    private final Path bannerDir;
-    private final Path miniatureDir;
+    private final Map<FilePartType, Path> typeToDirMap;
 
     public FileService(
             @Value("${thumbnail_dir}") Path thumbnailDir,
@@ -28,10 +28,12 @@ public class FileService {
             @Value("${miniature_dir}") Path miniatureDir
 
     ) {
-        this.thumbnailDir = thumbnailDir;
-        this.videoDir = videoDir;
-        this.bannerDir = bannerDir;
-        this.miniatureDir = miniatureDir;
+        this.typeToDirMap = Map.of(
+                FilePartType.THUMBNAIL, thumbnailDir,
+                FilePartType.VIDEO, videoDir,
+                FilePartType.BANNER, bannerDir,
+                FilePartType.MINIATURE, miniatureDir
+        );
 
         initializeDirectory(thumbnailDir);
         initializeDirectory(videoDir);
@@ -40,28 +42,41 @@ public class FileService {
     }
 
     // region API
-    public Mono<String> saveFile(FilePart filePart, FilePartType type) {
-        Path uploadDir = switch (type){
-            case THUMBNAIL -> thumbnailDir;
-            case VIDEO -> videoDir;
-            case BANNER -> bannerDir;
-            case MINIATURE -> miniatureDir;
-        };
 
-        Path targetPath = generateUniquePath(filePart, uploadDir);
-
-        return filePart.transferTo(targetPath)
-                .then(Mono.just(targetPath.toString()));
+    public Mono<Resource> getFileAsResource(String filename, FilePartType type) {
+        return getFullPath(filename, type)
+                .flatMap(path -> Mono.fromCallable(() -> {
+                    Resource resource = new UrlResource(path.toUri());
+                    if (resource.exists() && resource.isReadable()) {
+                        return resource;
+                    }
+                    throw new RuntimeException("File not readable: " + filename);
+                }).subscribeOn(Schedulers.boundedElastic()));
     }
 
-    public Mono<Void> deleteFile(String filePath) {
-        if (isPathEmpty(filePath)) return Mono.empty();
 
-        Path path = Paths.get(filePath);
-        return Mono.fromCallable(() -> {
-            Files.deleteIfExists(path);
-            return path;
-        }).then().subscribeOn(Schedulers.boundedElastic());
+    public Mono<String> saveFile(FilePart filePart, FilePartType type) {
+        Path uploadDir = typeToDirMap.get(type);
+        String uniqueFilename = generateUniqueFilename(filePart);
+        Path targetPath = uploadDir.resolve(uniqueFilename).normalize();
+        return filePart.transferTo(targetPath)
+                .then(Mono.just(uniqueFilename)); // Return only filename, not full path
+
+
+    }
+
+    public Mono<Void> deleteFile(String filename, FilePartType type) {
+        if (isPathEmpty(filename)) return Mono.empty();
+
+        return getFullPath(filename, type)
+                .flatMap(path -> Mono.fromRunnable(() -> {
+                    try {
+                        Files.deleteIfExists(path);
+                    } catch (IOException e) {
+                        throw new RuntimeException("Failed to delete file: " + filename, e);
+                    }
+                }).subscribeOn(Schedulers.boundedElastic()))
+                .then();
     }
     // endregion
 
@@ -74,10 +89,33 @@ public class FileService {
         }
     }
 
-    private Path generateUniquePath(FilePart filePart, Path uploadDir){
-        String uniqueFilename = System.currentTimeMillis() + "_" + filePart.filename();
-        return uploadDir.resolve(uniqueFilename).normalize();
+
+    private String generateUniqueFilename(FilePart filePart) {
+        // Use timestamp + original filename to ensure uniqueness
+        return System.currentTimeMillis() + "_" + filePart.filename();
     }
+
+    private Mono<Path> getFullPath(String filename, FilePartType type) {
+        return Mono.fromCallable(() -> {
+            Path baseDir = typeToDirMap.get(type);
+            if (baseDir == null) {
+                throw new IllegalArgumentException("Invalid file type: " + type);
+            }
+
+            Path fullPath = baseDir.resolve(filename).normalize();
+
+            // Security: ensure the resolved path is still within the base directory
+            if (!fullPath.startsWith(baseDir)) {
+                throw new SecurityException("Access denied: path traversal detected");
+            }
+
+            if (Files.exists(fullPath)) {
+                return fullPath;
+            }
+            throw new RuntimeException("File not found: " + filename);
+        }).subscribeOn(Schedulers.boundedElastic());
+    }
+
 
     private boolean isPathEmpty(String path){
         return path == null || path.trim().isEmpty();

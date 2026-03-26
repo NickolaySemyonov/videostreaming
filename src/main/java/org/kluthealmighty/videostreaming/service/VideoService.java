@@ -1,8 +1,7 @@
 package org.kluthealmighty.videostreaming.service;
 
 
-import org.kluthealmighty.videostreaming.dto.CreateVideoRequest;
-import org.kluthealmighty.videostreaming.dto.UpdateVideoRequest;
+import org.kluthealmighty.videostreaming.dto.VideoDataRequest;
 import org.kluthealmighty.videostreaming.dto.VideoResponse;
 import org.kluthealmighty.videostreaming.entity.VideoEntity;
 import org.kluthealmighty.videostreaming.enums.FilePartType;
@@ -14,6 +13,8 @@ import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -48,7 +49,7 @@ public class VideoService {
                 .map(videoEntity -> videoEntity.getOwnerId().equals(userId));
     }
 
-    public Mono<VideoResponse> createVideo(CreateVideoRequest request, FilePart thumbnailPart, FilePart videoPart, Long userId) {
+    public Mono<VideoResponse> createVideo(VideoDataRequest request, FilePart thumbnailPart, FilePart videoPart, Long userId) {
         return Mono.usingWhen(
                 //Context
                 Mono.just(new CreateContext()),
@@ -73,7 +74,7 @@ public class VideoService {
         );
     }
 
-    public Mono<VideoResponse> updateVideo(UUID videoId, UpdateVideoRequest request, FilePart thumbnailPart) {
+    public Mono<VideoResponse> updateVideo(UUID videoId, VideoDataRequest request, FilePart thumbnailPart) {
         Mono<FilePart> thumbnailFilePartMono = Mono.justOrEmpty(thumbnailPart);
         return Mono.usingWhen(
                 //Context
@@ -140,8 +141,17 @@ public class VideoService {
 
         @Override
         public Mono<Void> rollback(FileService fileService) {
-            return Flux.just(thumbnailPath, videoPath)
-                    .flatMap(fileService::deleteFile)
+            List<Tuple2<String, FilePartType>> filesToDelete = new ArrayList<>();
+
+            if (thumbnailPath != null && !thumbnailPath.isEmpty()) {
+                filesToDelete.add(Tuples.of(thumbnailPath, FilePartType.THUMBNAIL));
+            }
+
+            if (videoPath!= null && !videoPath.isEmpty()) {
+                filesToDelete.add(Tuples.of(videoPath, FilePartType.VIDEO));
+            }
+            return Flux.fromIterable(filesToDelete)
+                    .flatMap(tuple -> fileService.deleteFile(tuple.getT1(), tuple.getT2()))
                     .then();
         }
     }
@@ -154,13 +164,13 @@ public class VideoService {
         @Override
         public Mono<Void> cleanup(FileService fileService) {
             if (!oldThumbnailPath.equals(newThumbnailPath))
-                return fileService.deleteFile(oldThumbnailPath);
+                return fileService.deleteFile(oldThumbnailPath, FilePartType.THUMBNAIL);
             return Mono.empty();
         }
 
         @Override
         public Mono<Void> rollback(FileService fileService) {
-            return fileService.deleteFile(newThumbnailPath);
+            return fileService.deleteFile(newThumbnailPath, FilePartType.THUMBNAIL);
         }
     }
 
@@ -170,9 +180,19 @@ public class VideoService {
 
         @Override
         public Mono<Void> cleanup(FileService fileService) {
-            return Flux.just(thumbnailPath, videoPath)
-                    .flatMap(fileService::deleteFile)
+            List<Tuple2<String, FilePartType>> filesToDelete = new ArrayList<>();
+
+            if (thumbnailPath != null && !thumbnailPath.isEmpty()) {
+                filesToDelete.add(Tuples.of(thumbnailPath, FilePartType.THUMBNAIL));
+            }
+
+            if (videoPath != null && !videoPath.isEmpty()) {
+                filesToDelete.add(Tuples.of(videoPath, FilePartType.VIDEO));
+            }
+            return Flux.fromIterable(filesToDelete)
+                    .flatMap(tuple -> fileService.deleteFile(tuple.getT1(), tuple.getT2()))
                     .then();
+
         }
 
         @Override
@@ -183,7 +203,7 @@ public class VideoService {
     // endregion
 
     // region ENTITY-DTO
-    private Mono<VideoEntity> createVideoEntity(CreateVideoRequest request, String thumbnailPath, String videoPath, Long ownerId) {
+    private Mono<VideoEntity> createVideoEntity(VideoDataRequest request, String thumbnailPath, String videoPath, Long ownerId) {
         VideoEntity videoEntity = new VideoEntity(
                 null,
                 request.name(),
@@ -196,7 +216,7 @@ public class VideoService {
         return videoRepository.save(videoEntity);
     }
 
-    private Mono<VideoEntity> updateVideoEntity(VideoEntity existingVideo, UpdateVideoRequest request, String newThumbnailPath) {
+    private Mono<VideoEntity> updateVideoEntity(VideoEntity existingVideo, VideoDataRequest request, String newThumbnailPath) {
         VideoEntity updatedVideo = new VideoEntity();
         updatedVideo.setId(existingVideo.getId());
         updatedVideo.setName(

@@ -13,7 +13,7 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     @ExceptionHandler(VideoNotFoundException.class)
-    public Mono<ResponseEntity<Map<String, Object>>> handleVideoNotFound(VideoNotFoundException e) {
+    public Mono<ResponseEntity<Map<String, Object>>> handleVideoNotFoundEx(VideoNotFoundException e) {
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("timestamp", LocalDateTime.now());
         errorResponse.put("message", e.getMessage());
@@ -24,7 +24,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(VideoProcessingException.class)
-    public Mono<ResponseEntity<Map<String, Object>>> handleVideoProcessing(VideoProcessingException e) {
+    public Mono<ResponseEntity<Map<String, Object>>> handleVideoProcessingEx(VideoProcessingException e) {
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("timestamp", LocalDateTime.now());
         errorResponse.put("message", e.getMessage());
@@ -34,13 +34,26 @@ public class GlobalExceptionHandler {
         return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse));
     }
 
+    @ExceptionHandler(RefreshTokenException.class)
+    public Mono<ResponseEntity<Map<String, Object>>> handleRefreshTokenEx(RefreshTokenException e) {
+        Map<String, Object> errorResponse = new HashMap<>();
+        errorResponse.put("timestamp", LocalDateTime.now());
+        errorResponse.put("message", e.getMessage());
+        errorResponse.put("status", HttpStatus.UNAUTHORIZED.value());
+        errorResponse.put("error", "Auth error");
+
+        return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse));
+    }
+
+
+
     @ExceptionHandler(Exception.class)
     public Mono<ResponseEntity<Map<String, Object>>> handleGenericException(Exception e) {
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("timestamp", LocalDateTime.now());
-        errorResponse.put("message", "An unexpected error occurred");
+        errorResponse.put("message", e.getMessage());
         errorResponse.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        errorResponse.put("error", "Internal Server Error");
+        errorResponse.put("error", "Internal Server Error: "+ e.getClass().getSimpleName());
 
         e.printStackTrace();
 

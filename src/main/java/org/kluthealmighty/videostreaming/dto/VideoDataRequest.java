@@ -1,6 +1,6 @@
 package org.kluthealmighty.videostreaming.dto;
 
-public record UpdateVideoRequest(
+public record VideoDataRequest(
         String name,
         String description
 ) {

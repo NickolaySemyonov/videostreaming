@@ -1,5 +1,6 @@
 package org.kluthealmighty.videostreaming.security;
 
+import org.kluthealmighty.videostreaming.exceptions.RefreshTokenException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -42,7 +43,7 @@ public class JwtService {
                 .secure(true)
                 .path("/")
                 .maxAge(maxAgeSeconds)
-                .sameSite("Strict")  // Strict, Lax, or None
+                .sameSite("None")  // Strict, Lax, or None
                 .build();
     }
 
@@ -58,7 +59,7 @@ public class JwtService {
                 })
                 .onErrorResume(e -> {
                     revokeTokenCookies(exchange.getResponse());
-                    return Mono.error(new Exception("Token refresh failed", e));
+                    return Mono.error(new RefreshTokenException("Invalid or missing refresh token"));
                 })
                 .then();
     }

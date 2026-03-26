@@ -1,7 +1,6 @@
 package org.kluthealmighty.videostreaming.controller;
 
-import org.kluthealmighty.videostreaming.dto.CreateVideoRequest;
-import org.kluthealmighty.videostreaming.dto.UpdateVideoRequest;
+import org.kluthealmighty.videostreaming.dto.VideoDataRequest;
 import org.kluthealmighty.videostreaming.dto.VideoResponse;
 import org.kluthealmighty.videostreaming.security.JwtPrincipal;
 import org.kluthealmighty.videostreaming.service.VideoService;
@@ -44,7 +43,7 @@ public class VideoController {
 
     @PostMapping
     public Mono<ResponseEntity<VideoResponse>> createVideo(
-            @RequestPart("videoToCreate") CreateVideoRequest request,
+            @RequestPart("videoToCreate") VideoDataRequest request,
             @RequestPart("thumbnail") FilePart thumbnailPart,
             @RequestPart("video") FilePart videoPart,
             @AuthenticationPrincipal JwtPrincipal principal
@@ -56,7 +55,7 @@ public class VideoController {
     @PutMapping("/{id}")
     public Mono<ResponseEntity<VideoResponse>> updateVideo(
             @PathVariable UUID id,
-            @RequestPart("videoToUpdate") UpdateVideoRequest request,
+            @RequestPart("videoToUpdate") VideoDataRequest request,
             @RequestPart(value = "thumbnail", required = false) FilePart thumbnailPart,
             @AuthenticationPrincipal JwtPrincipal principal
     ) {

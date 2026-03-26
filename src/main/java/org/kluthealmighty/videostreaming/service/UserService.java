@@ -1,7 +1,7 @@
 package org.kluthealmighty.videostreaming.service;
 
 import org.kluthealmighty.videostreaming.dto.AuthRequest;
-import org.kluthealmighty.videostreaming.dto.UpdateChannelRequest;
+import org.kluthealmighty.videostreaming.dto.ChannelDataRequest;
 import org.kluthealmighty.videostreaming.dto.UserResponse;
 import org.kluthealmighty.videostreaming.entity.UserEntity;
 import org.kluthealmighty.videostreaming.enums.FilePartType;
@@ -13,8 +13,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import static reactor.netty.http.HttpConnectionLiveness.log;
 
@@ -47,7 +51,7 @@ public class UserService {
                 .map(this::toDomainUser);
     }
 
-    public Mono<UserResponse> updateUser(Long userId, UpdateChannelRequest request, FilePart bannerPart, FilePart miniaturePart) {
+    public Mono<UserResponse> updateUser(Long userId, ChannelDataRequest request, FilePart bannerPart, FilePart miniaturePart) {
         Mono<FilePart> bannerlFilePartMono = Mono.justOrEmpty(bannerPart);
         Mono<FilePart> miniatureFilePartMono = Mono.justOrEmpty(miniaturePart);
 
@@ -98,19 +102,35 @@ public class UserService {
 
         @Override
         public Mono<Void> cleanup(FileService fileService) {
-            return Flux.just(
-                            !oldBannerPath.equals(newBannerPath) ? oldBannerPath : "",
-                            !oldMiniaturePath.equals(newMiniaturePath) ? oldMiniaturePath : ""
-                    )
-                    .filter(path -> !path.isEmpty())
-                    .flatMap(fileService::deleteFile)
+            List<Tuple2<String, FilePartType>> filesToDelete = new ArrayList<>();
+
+            if (!oldBannerPath.equals(newBannerPath) && !oldBannerPath.isEmpty()) {
+                filesToDelete.add(Tuples.of(oldBannerPath, FilePartType.BANNER));
+            }
+
+            if (!oldMiniaturePath.equals(newMiniaturePath) && !oldMiniaturePath.isEmpty()) {
+                filesToDelete.add(Tuples.of(oldMiniaturePath, FilePartType.MINIATURE));
+            }
+
+            return Flux.fromIterable(filesToDelete)
+                    .flatMap(tuple -> fileService.deleteFile(tuple.getT1(), tuple.getT2()))
                     .then();
         }
 
         @Override
         public Mono<Void> rollback(FileService fileService) {
-            return Flux.just(newBannerPath, newMiniaturePath)
-                    .flatMap(fileService::deleteFile)
+            List<Tuple2<String, FilePartType>> filesToDelete = new ArrayList<>();
+
+            if (newBannerPath != null && !newBannerPath.isEmpty()) {
+                filesToDelete.add(Tuples.of(newBannerPath, FilePartType.BANNER));
+            }
+
+            if (newMiniaturePath != null && !newMiniaturePath.isEmpty()) {
+                filesToDelete.add(Tuples.of(newMiniaturePath, FilePartType.MINIATURE));
+            }
+
+            return Flux.fromIterable(filesToDelete)
+                    .flatMap(tuple -> fileService.deleteFile(tuple.getT1(), tuple.getT2()))
                     .then();
         }
     }
@@ -135,7 +155,7 @@ public class UserService {
         return userRepository.save(userEntity);
     }
 
-    private Mono<UserEntity> updateUserEntity(UserEntity existingUser, UpdateChannelRequest request, String newBannerPath, String newMiniaturePath) {
+    private Mono<UserEntity> updateUserEntity(UserEntity existingUser, ChannelDataRequest request, String newBannerPath, String newMiniaturePath) {
         UserEntity updatedUser = new UserEntity();
         updatedUser.setId(existingUser.getId());
         updatedUser.setEmail(existingUser.getEmail());
