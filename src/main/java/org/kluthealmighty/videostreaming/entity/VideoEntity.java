@@ -93,14 +93,6 @@ public class VideoEntity {
     public VideoEntity() {
     }
 
-    public VideoEntity(String name, String description, String thumbnailPath, String videoPath) {
-        this.name = name;
-        this.description = description;
-        this.thumbnailPath = thumbnailPath;
-        this.videoPath = videoPath;
-        this.createdAt = LocalDateTime.now();
-    }
-
     public VideoEntity(UUID id, String name, String description, String thumbnailPath, String videoPath, LocalDateTime createdAt, Long ownerId) {
         this.id = id;
         this.name = name;

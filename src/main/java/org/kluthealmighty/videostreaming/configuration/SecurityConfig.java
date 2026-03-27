@@ -65,7 +65,7 @@ public class SecurityConfig {
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .logout(ServerHttpSecurity.LogoutSpec::disable)
                 .authorizeExchange((authExchangeSpec) -> authExchangeSpec
-                        .pathMatchers(HttpMethod.POST,"/register", "/login", "/logout", "/refresh").permitAll()
+                        .pathMatchers(HttpMethod.POST,"/auth/*").permitAll()
                         .anyExchange().authenticated()
                 )
                 .addFilterBefore(jwtFilter, SecurityWebFiltersOrder.AUTHENTICATION)
