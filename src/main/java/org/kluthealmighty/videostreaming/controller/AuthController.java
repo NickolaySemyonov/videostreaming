@@ -1,7 +1,6 @@
 package org.kluthealmighty.videostreaming.controller;
 
 import org.kluthealmighty.videostreaming.dto.AuthRequest;
-import org.kluthealmighty.videostreaming.dto.AuthResponse;
 import org.kluthealmighty.videostreaming.security.JwtPrincipal;
 import org.kluthealmighty.videostreaming.security.JwtService;
 import org.kluthealmighty.videostreaming.security.UserPrincipal;
@@ -12,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
@@ -29,8 +29,13 @@ public class AuthController {
     @Autowired
     private ReactiveAuthenticationManager authenticationManager;
 
+    @GetMapping
+    public Mono<ResponseEntity<JwtPrincipal>> checkAuth(@AuthenticationPrincipal JwtPrincipal principal) {
+        return Mono.just(ResponseEntity.ok(principal));
+    }
+
     @PostMapping("/register")
-    public Mono<ResponseEntity<AuthResponse>> register(
+    public Mono<ResponseEntity<JwtPrincipal>> register(
             @RequestBody AuthRequest request,
             ServerWebExchange exchange
     ) {
@@ -42,12 +47,12 @@ public class AuthController {
                     jwtService.setRefreshTokenCookie(exchange.getResponse(), principal);
                     return ResponseEntity
                             .status(HttpStatus.CREATED)
-                            .body(new AuthResponse(principal.channelTag(), "Registration successful") );
+                            .body(principal);
                 });
     }
 
     @PostMapping("/login")
-    public Mono<ResponseEntity<AuthResponse>> login(
+    public Mono<ResponseEntity<JwtPrincipal>> login(
             @RequestBody AuthRequest request,
             ServerWebExchange exchange
     ) {
@@ -70,7 +75,7 @@ public class AuthController {
                     );
                     jwtService.setAccessTokenCookie(exchange.getResponse(), principal);
                     jwtService.setRefreshTokenCookie(exchange.getResponse(), principal);
-                    return ResponseEntity.ok(new AuthResponse(principal.channelTag(), "Logged in"));
+                    return ResponseEntity.ok(principal);
                 });
     }
 
